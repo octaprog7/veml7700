@@ -11,7 +11,7 @@ class BusAdapter:
     def __init__(self, bus):
         self.bus = bus
 
-    def read_register(self, device_addr: int, reg_addr: int, bytes_count: int = 2):
+    def read_register(self, device_addr: int, reg_addr: int, bytes_count: int = 2) -> bytes:
         """считывает из регистра датчика значение.
         bytes_count - размер значения в байтах"""
         raise NotImplementedError
@@ -40,7 +40,7 @@ class I2cAdapter(BusAdapter):
         buf = value.to_bytes(bytes_count, byte_order)
         return self.bus.writeto_mem(device_addr, reg_addr, buf)
 
-    def read_register(self, device_addr: int, reg_addr: int, bytes_count: int = 2):
+    def read_register(self, device_addr: int, reg_addr: int, bytes_count: int = 2) -> bytes:
         """считывает из регистра датчика значение.
         bytes_count - размер значения в байтах"""
         return self.bus.readfrom_mem(device_addr, reg_addr, bytes_count)
