@@ -18,13 +18,13 @@ if __name__ == '__main__':
     i2c = I2C(0, scl=Pin(13), sda=Pin(12), freq=400_000)  # on Arduino Nano RP2040 Connect tested
     adaptor = I2cAdapter(i2c)
     # ps - pressure sensor
-    v7700 = veml7700vishay.Veml7700(adaptor)
+    sol = veml7700vishay.Veml7700(adaptor)
 
     # если у вас посыпались исключения, чего у меня на макетной плате с али и проводами МГТВ не наблюдается,
     # то проверьте все соединения.
     # Радиотехника - наука о контактах! РТФ-Чемпион!
-    sol.power(True)  # Sensor Of Lux
-    sol.set_mode(True, True)
+    # gain = 1, integration time = 25 ms, persistence = 1, interrupt = shutdown = False
+    sol.set_config_als(0, 2, 0, False, False)
     curr_max = 1
 
     for lux in sol:
