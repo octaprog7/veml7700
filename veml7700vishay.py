@@ -16,17 +16,28 @@ def _check_value(value: int, valid_range, error_msg: str) -> int:
 
 class Veml7700(BaseSensor, Iterator):
     """Class for work with ambient Light Sensor VEML7700"""
-    _GAIN = 1, 2, 0.125, 0.25
+    #         0  1  2      3
+    # _GAIN = 1, 2, 0.125, 0.25
+    _IT = 12, 8, 0, 1, 2, 3
+
+    @staticmethod
+    def get_resolution(gain: int, integration_time: int) -> float:
+        """Return resolution [lux/step]"""
+        _ = _check_value(gain, range(4), f"Invalid als gain value: {gain}")
+        _ = _check_value(gain, range(6), f"Invalid als integration_time: {integration_time}")
+        a = 2, 1, 16, 8
+        k1 = a[gain]
+        k2 = Veml7700._IT.index(integration_time)   # 0..5
+        return 0.1152*k1/(2**k2)
 
     def __init__(self, adapter: bus_service.I2cAdapter, address: int = 0x10):
         """  """
         super().__init__(adapter, address)
-        self.als_gain = 0       # gain
-        self.als_raw_gain = 0   # raw gain
-        self.als_it = 0         # integration time
-        self.als_pers = 0       # persistence protect number setting
+        self.als_gain = 0           # gain
+        self.als_it = 0             # integration time
+        self.als_pers = 0           # persistence protect number setting
         self.als_int_en = False     # interrupt enable setting
-        self.als_shutdown = False  # ALS shut down setting
+        self.als_shutdown = False   # ALS shut down setting
 
     def _read_register(self, reg_addr, bytes_count=2) -> bytes:
         """считывает из регистра датчика значение.
@@ -46,15 +57,15 @@ class Veml7700(BaseSensor, Iterator):
                        interrupt_enable: bool, shutdown: bool):
         """Установка параметров Датчика Внешней Освещенности (ДВО - ALS).
         Setting Ambient Light Sensor (ALS) parameters.
-        gain = 0..3; 0-gain=1, 1-gain=2, 2-gain=0.125, 3-gain=0.25.
+        gain = 0..3; 0-gain=1, 1-gain=2, 2-gain=0.125(1/8), 3-gain=0.25(1/4).
         integration_time = 0..5; 0-25 ms; 1-50 ms; 2-100 ms, 3-200 ms, 4-400 ms, 5-800 ms
         persistence protect number = 0..3; 0-1, 1-2, 2-4, 3-8
         """
         _cfg = 0
         gain = _check_value(gain, range(4), f"Invalid als gain value: {gain}")
         _tmp = _check_value(integration_time, range(6), f"Invalid als integration_time: {integration_time}")
-        _t_it = 12, 8, 0, 1, 2, 3
-        it = _t_it[_tmp]    # integration_time
+        it = Veml7700._IT[_tmp]    # integration_time
+
         pers = _check_value(persistence, range(4), f"Invalid als persistence protect number: {persistence}")
         ie = 0
         if interrupt_enable:
@@ -70,8 +81,8 @@ class Veml7700(BaseSensor, Iterator):
         _cfg |= gain << 11
 
         self._write_register(0x00, _cfg, 2)
-
-        self.als_raw_gain = gain
+        self.als_gain = gain
+        self.als_it = integration_time
 
     def get_config_als(self) -> None:
         """read ALS config from register (2 byte)"""
@@ -79,21 +90,20 @@ class Veml7700(BaseSensor, Iterator):
         cfg = self.unpack("H", reg_val)[0]  # unsigned short
         #
         tmp = (cfg & 0b0001_1000_0000_0000) >> 11  # gain
-        if tmp < 2:
-            self.als_gain = 1 + tmp
-        else:
-            self.als_gain = 0.125 * (tmp - 1)
+        self.als_gain = tmp
 
         tmp = (cfg & 0b0000_0011_1100_0000) >> 6  # integration time setting
-        if tmp not in (0, 1, 2, 3, 8, 12):
-            raise ValueError("Invalid value ALS_IT from config register #0: {tmp}")
-        if tmp < 4:
-            self.als_it = 100 * 2 ** tmp
-        else:
-            if tmp == 0x08:
-                self.als_it = 50
-            if tmp == 12:
-                self.als_it = 25
+        self.als_it = tmp
+
+        # if tmp not in (0, 1, 2, 3, 8, 12):
+        #     raise ValueError("Invalid value ALS_IT from config register #0: {tmp}")
+        # if tmp < 4:
+        #     self.als_it = 100 * (2 ** tmp)
+        # else:
+        #     if tmp == 0x08:
+        #         self.als_it = 50
+        #     if tmp == 12:
+        #         self.als_it = 25
 
         tmp = (cfg & 0b0000_0000_0011_0000) >> 4  # persistence protect number setting
         self.als_pers = 2**tmp
@@ -124,8 +134,8 @@ class Veml7700(BaseSensor, Iterator):
     def get_illumination(self):
         """return illumination in lux"""
         reg_val = self._read_register(0x04, 2)
-        raw = self.als_raw_gain
-        return self.unpack("H", reg_val)[0] / Veml7700._GAIN[raw]
+        raw_lux = self.unpack("H", reg_val)[0]
+        return raw_lux * Veml7700.get_resolution(self.als_gain, self.als_it)
 
     def get_white_channel(self):
         """Return white channel output data"""
