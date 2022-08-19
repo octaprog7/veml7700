@@ -138,7 +138,7 @@ class Veml7700(BaseSensor, Iterator):
 
     def soft_reset(self):
         """Software reset."""
-        pass
+        return None
 
     def __next__(self) -> float:
         return self.get_illumination()
