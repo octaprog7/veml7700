@@ -15,13 +15,12 @@ def _check_value(value: int, valid_range, error_msg: str) -> int:
 
 
 class Veml7700(BaseSensor, Iterator):
-    """Class for work with ambient Light Sensor VEML7700"""
-    #         0  1  2      3
-    # _GAIN = 1, 2, 0.125, 0.25
-    _IT = 12, 8, 0, 1, 2, 3
+    """Class for work with ambient Light Sensor VEML7700.
+    Please read: https://www.vishay.com/docs/84286/veml7700.pdf"""
+    _IT = 12, 8, 0, 1, 2, 3     # integration time const
 
     @staticmethod
-    def get_resolution(gain: int, integration_time: int) -> float:
+    def _get_resolution(gain: int, integration_time: int) -> float:
         """Return resolution [lux/step]"""
         _ = _check_value(gain, range(4), f"Invalid als gain value: {gain}")
         _ = _check_value(gain, range(6), f"Invalid als integration_time: {integration_time}")
@@ -81,8 +80,12 @@ class Veml7700(BaseSensor, Iterator):
         _cfg |= gain << 11
 
         self._write_register(0x00, _cfg, 2)
+        # save
         self.als_gain = gain
         self.als_it = integration_time
+        self.als_pers = pers
+        self.als_int_en = interrupt_enable
+        self.als_shutdown = shutdown
 
     def get_config_als(self) -> None:
         """read ALS config from register (2 byte)"""
@@ -94,16 +97,6 @@ class Veml7700(BaseSensor, Iterator):
 
         tmp = (cfg & 0b0000_0011_1100_0000) >> 6  # integration time setting
         self.als_it = tmp
-
-        # if tmp not in (0, 1, 2, 3, 8, 12):
-        #     raise ValueError("Invalid value ALS_IT from config register #0: {tmp}")
-        # if tmp < 4:
-        #     self.als_it = 100 * (2 ** tmp)
-        # else:
-        #     if tmp == 0x08:
-        #         self.als_it = 50
-        #     if tmp == 12:
-        #         self.als_it = 25
 
         tmp = (cfg & 0b0000_0000_0011_0000) >> 4  # persistence protect number setting
         self.als_pers = 2**tmp
@@ -123,6 +116,8 @@ class Veml7700(BaseSensor, Iterator):
         self._write_register(0x03, reg_val, 2)
 
     def get_interrupt_status(self) -> tuple:
+        """Return interrupt flags while trigger occurred due to data crossing low/high threshold windows.
+        tuple (low_threshold, high_threshold)."""
         reg_val = self._read_register(0x06, 2)
         irq_status = self.unpack("H", reg_val)[0]  # unsigned short
         # Bit 15 defines interrupt flag while trigger occurred due to data crossing low threshold windows.
@@ -135,11 +130,21 @@ class Veml7700(BaseSensor, Iterator):
         """return illumination in lux"""
         reg_val = self._read_register(0x04, 2)
         raw_lux = self.unpack("H", reg_val)[0]
-        return raw_lux * Veml7700.get_resolution(self.als_gain, self.als_it)
+        return raw_lux * Veml7700._get_resolution(self.als_gain, self.als_it)
 
     def get_white_channel(self):
         """Return white channel output data"""
         reg_val = self._read_register(0x05, 2)
+        return self.unpack("H", reg_val)[0]
+
+    def get_high_threshold(self) -> int:
+        """Return ALS high threshold window setting"""
+        reg_val = self._read_register(0x01, 2)
+        return self.unpack("H", reg_val)[0]
+
+    def get_low_threshold(self) -> int:
+        """Return ALS low threshold window setting"""
+        reg_val = self._read_register(0x02, 2)
         return self.unpack("H", reg_val)[0]
 
     def get_id(self):
