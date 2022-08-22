@@ -31,12 +31,14 @@ class Veml7700(BaseSensor, Iterator):
 
     def __init__(self, adapter: bus_service.I2cAdapter, address: int = 0x10):
         """  """
-        super().__init__(adapter, address)
+        super().__init__(adapter, address, False)
         self.als_gain = 0           # gain
         self.als_it = 0             # integration time
         self.als_pers = 0           # persistence protect number setting
         self.als_int_en = False     # interrupt enable setting
         self.als_shutdown = False   # ALS shut down setting
+        self.enable_psm = False     # Enable power save mode for sensor
+        self.psm = 0                # power save mode for sensor 0..3
 
     def _read_register(self, reg_addr, bytes_count=2) -> bytes:
         """считывает из регистра датчика значение.
@@ -46,10 +48,7 @@ class Veml7700(BaseSensor, Iterator):
     def _write_register(self, reg_addr, value: int, bytes_count=2) -> int:
         """записывает данные value в датчик, по адресу reg_addr.
         bytes_count - кол-во записываемых данных"""
-        if self.is_big_byteorder():
-            byte_order = 'big'
-        else:
-            byte_order = 'little'
+        byte_order = self._get_byteorder_as_str()[0]
         return self.adapter.write_register(self.address, reg_addr, value, bytes_count, byte_order)
 
     def set_config_als(self, gain: int, integration_time: int, persistence: int,
@@ -114,6 +113,8 @@ class Veml7700(BaseSensor, Iterator):
         reg_val |= int(enable_psm)
         reg_val |= psm << 1
         self._write_register(0x03, reg_val, 2)
+        self.enable_psm = enable_psm
+        self.psm = psm
 
     def get_interrupt_status(self) -> tuple:
         """Return interrupt flags while trigger occurred due to data crossing low/high threshold windows.
