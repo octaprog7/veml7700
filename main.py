@@ -25,9 +25,12 @@ if __name__ == '__main__':
     # Радиотехника - наука о контактах! РТФ-Чемпион!
     # gain = 1, integration time = 25 ms, persistence = 1, interrupt = shutdown = False
     sol.set_config_als(0, 2, 0, False, False)
-    curr_max = 1
+    old_lux = curr_max = 1
 
     for lux in sol:
+        if lux != old_lux:
+            curr_max = max(lux, curr_max)
+            lt = time.localtime()
+            print(f"{lt[3:6]}\tIllumination [lux]: {lux}\tmax: {curr_max}\tNormalized [%]: {100*lux/curr_max}")
+        old_lux = lux
         time.sleep_ms(150)
-        curr_max = max(lux, curr_max)
-        print(f"Current illumination [lux]: {lux}\tNormalized [%]: {100 * lux / curr_max}")
