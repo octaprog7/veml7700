@@ -25,6 +25,7 @@ if __name__ == '__main__':
     # Радиотехника - наука о контактах! РТФ-Чемпион!
     # gain = 1, integration time = 25 ms, persistence = 1, interrupt = shutdown = False
     sol.set_config_als(0, 2, 0, False, False)
+    sol.set_power_save_mode(True, 2)
     old_lux = curr_max = 1
 
     for lux in sol:
@@ -32,6 +33,8 @@ if __name__ == '__main__':
             curr_max = max(lux, curr_max)
             lt = time.localtime()
             wh = sol.get_white_channel()
-            print(f"{lt[3:6]}\tIllumination [lux]: {lux}\twhite channel: {wh}\tmax: {curr_max}\tNormalized [%]: {100*lux/curr_max}")
+            delay = sol.get_conversion_cycle_time()
+            print(f"{lt[3:6]}\tIllumination [lux]: {lux}\twhite channel: {wh}\tmax: {curr_max}\tNormalized [%]:\
+{100*lux/curr_max}\tdelay: {delay} [ms]")
         old_lux = lux
-        time.sleep_ms(300)
+        time.sleep_ms(delay)
