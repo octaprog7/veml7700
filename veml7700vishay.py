@@ -158,3 +158,16 @@ class Veml7700(BaseSensor, Iterator):
 
     def __next__(self) -> float:
         return self.get_illumination()
+
+    @micropython.native
+    # def get_conversion_cycle_time(integration_time: int, power_save_enable: bool, power_save_mode: int) -> int:
+    def get_conversion_cycle_time(self) -> int:
+        """Return conversion cycle time in [ms]"""
+        """Without using the power-saving feature (PSM_EN = 0), the controller has to wait before reading out
+         measurement results, at least for the programmed integration time. For example, for ALS_IT = 100 ms a wait time
+         of ≥ 100 ms is needed. A more simple way of continuous measurements can be realized by activating the PSM feature,
+         setting PSM_EN = 1."""
+        base = 25 * 2 ** self.als_it
+        if not self.enable_psm:
+            return base
+        return base + 500 * (2 ** self.psm)
