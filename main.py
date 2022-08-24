@@ -26,7 +26,7 @@ if __name__ == '__main__':
     # gain = 1, integration time = 25 ms, persistence = 1, interrupt = shutdown = False
     sol.set_config_als(0, 2, 0, False, False)
     sol.set_power_save_mode(True, 2)
-    old_lux = curr_max = 1
+    delay = old_lux = curr_max = 1
 
     for lux in sol:
         if lux != old_lux:
