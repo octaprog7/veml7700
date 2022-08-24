@@ -31,6 +31,7 @@ if __name__ == '__main__':
         if lux != old_lux:
             curr_max = max(lux, curr_max)
             lt = time.localtime()
-            print(f"{lt[3:6]}\tIllumination [lux]: {lux}\tmax: {curr_max}\tNormalized [%]: {100*lux/curr_max}")
+            wh = sol.get_white_channel()
+            print(f"{lt[3:6]}\tIllumination [lux]: {lux}\twhite channel: {wh}\tmax: {curr_max}\tNormalized [%]: {100*lux/curr_max}")
         old_lux = lux
-        time.sleep_ms(150)
+        time.sleep_ms(300)
