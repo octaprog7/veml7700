@@ -170,4 +170,6 @@ class Veml7700(BaseSensor, Iterator):
         base = 25 * 2 ** self.als_it
         if not self.enable_psm:
             return base
+        # весь код ниже этой строки в этой функции под вопросом. документация на Veml7700
+        # не позволяет мне понять алгоритм вычисления времени преобразования датчика!
         return base + 500 * (2 ** self.psm)
