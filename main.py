@@ -17,12 +17,10 @@ if __name__ == '__main__':
     # bus =  I2C(scl=Pin(4), sda=Pin(5), freq=100000)   # на esp8266    !
     i2c = I2C(0, scl=Pin(13), sda=Pin(12), freq=400_000)  # on Arduino Nano RP2040 Connect tested
     adaptor = I2cAdapter(i2c)
-    # ps - pressure sensor
     sol = veml7700vishay.Veml7700(adaptor)
 
     # если у вас посыпались исключения, чего у меня на макетной плате с али и проводами МГТВ не наблюдается,
     # то проверьте все соединения.
-    # Радиотехника - наука о контактах! РТФ-Чемпион!
     # gain = 1, integration time = 25 ms, persistence = 1, interrupt = shutdown = False
     sol.set_config_als(0, 2, 0, False, False)
     sol.set_power_save_mode(True, 2)
