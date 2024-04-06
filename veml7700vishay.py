@@ -22,8 +22,8 @@ class Veml7700(BaseSensor, Iterator):
     @staticmethod
     def _get_resolution(gain: int, integration_time: int) -> float:
         """Return resolution [lux/step]"""
-        _ = _check_value(gain, range(4), f"Invalid als gain value: {gain}")
-        _ = _check_value(gain, range(6), f"Invalid als integration_time: {integration_time}")
+        _check_value(gain, range(4), f"Invalid als gain value: {gain}")
+        _check_value(integration_time, range(6), f"Invalid als integration_time: {integration_time}")
         a = 2, 1, 16, 8
         k1 = a[gain]
         k2 = Veml7700._IT.index(integration_time)   # 0..5
@@ -162,11 +162,11 @@ class Veml7700(BaseSensor, Iterator):
     @micropython.native
     # def get_conversion_cycle_time(integration_time: int, power_save_enable: bool, power_save_mode: int) -> int:
     def get_conversion_cycle_time(self) -> int:
-        """Return conversion cycle time in [ms]"""
-        """Without using the power-saving feature (PSM_EN = 0), the controller has to wait before reading out
-         measurement results, at least for the programmed integration time. For example, for ALS_IT = 100 ms a wait time
-         of ≥ 100 ms is needed. A more simple way of continuous measurements can be realized by activating the PSM feature,
-         setting PSM_EN = 1."""
+        """Return conversion cycle time in [ms].
+        Without using the power-saving feature (PSM_EN = 0), the controller has to wait before reading out
+        measurement results, at least for the programmed integration time. For example, for ALS_IT = 100 ms a wait time
+        of ≥ 100 ms is needed. A more simple way of continuous measurements can be realized by activating the PSM feature,
+        setting PSM_EN = 1."""
         base = 25 * 2 ** self.als_it
         if not self.enable_psm:
             return base
