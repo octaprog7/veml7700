@@ -20,18 +20,77 @@ class Veml7700(BaseSensor, Iterator):
     _IT = 12, 8, 0, 1, 2, 3     # integration time const
 
     @staticmethod
-    def _get_resolution(gain: int, integration_time: int) -> float:
-        """Return resolution [lux/step]"""
-        _check_value(gain, range(4), f"Invalid als gain value: {gain}")
-        _check_value(integration_time, range(6), f"Invalid als integration_time: {integration_time}")
-        a = 2, 1, 16, 8
-        k1 = a[gain]
-        k2 = Veml7700._IT.index(integration_time)   # 0..5
-        return 0.1152*k1/(2**k2)
+    def _it_to_raw_it(it: int) -> int:
+        """Возвращает сырое значение времени интегрирования (для битового поля в регистре),
+        соответствующее it - integration_time.
+        Спасибо вам, разработчики, за дополнительные трудности!
+        it                  return_value    integration_time_ms
+        0                   12              25
+        1                   8               50
+        2                   0               100
+        3                   1               200
+        4                   2               400
+        5                   3               800
+        """
+        return Veml7700._IT[it]
+
+    @staticmethod
+    def _raw_it_to_it(raw_it: int) -> int:
+        """Метод обратный методу _it_to_raw_it"""
+        return Veml7700._IT.index(raw_it)
+
+    @staticmethod
+    def _get_integration_time(raw_it: int) -> int:
+        """Возвращает время интегрирования, в миллисекундах, по сырому значению raw_it (0..5)"""
+        return 25 * 2 ** raw_it
+
+    @staticmethod
+    def _raw_gain_to_gain(raw_gain: int) -> float:
+        """Преобразует сырое значение усиления (0..3) в коэффициент усиления"""
+        _g = 1, 2, 0.125, 0.25
+        return _g[raw_gain]
+
+    @staticmethod
+    def _check_gain(_gain: float) -> float:
+        """Проверяет коэффициент усиления на правильность"""
+        _gains = 0.125, 0.25, 1, 2
+        if not _gain in _gains:
+            raise ValueError(f"Invalid _gain value: {_gain}")
+        return _gain
+
+    @staticmethod
+    def _check_raw(raw_gain: int, raw_it: int):
+        _check_value(raw_gain, range(4), f"Invalid als gain value: {raw_gain}")
+        _check_value(raw_it, range(6), f"Invalid als raw integration_time: {raw_it}")
+
+    @staticmethod
+    def get_max_possible_illumination(raw_gain: int, raw_it: int) -> float:
+        """Возвращает максимально возможный уровень освещенности в lux в
+        зависимости от сырого значения усиления (raw_gain 0..3) и времени интегрирования (сырое значение 0..5) """
+        Veml7700._check_raw(raw_gain, raw_it)
+        #
+        _gain = Veml7700._raw_gain_to_gain(raw_gain)
+        _g_base = 0.125
+        _max_ill = 120796
+        _k = _gain / _g_base
+        return (_max_ill / 2 ** raw_it) / _k
+
+    @staticmethod
+    def _get_resolution(raw_gain: int, raw_it: int) -> float:
+        """Возвращает разрешение младшего разряда в [lux] по сырому значению усиления (gain 0..3) и
+        по it_raw (сырые значения) 0..5"""
+        Veml7700._check_raw(raw_gain, raw_it)
+        #
+        _gain = Veml7700._raw_gain_to_gain(raw_gain)
+        _g_base = 0.125
+        _max_res = 1.8432
+        _k = _gain / _g_base
+        return (_max_res / 2 ** raw_it) / _k
 
     def __init__(self, adapter: bus_service.I2cAdapter, address: int = 0x10):
         """  """
         super().__init__(adapter, address, False)
+        self._last_raw_ill =None    # хранит последнее, считанное из датчика, сырое значение освещенности
         self.als_gain = 0           # gain
         self.als_it = 0             # integration time
         self.als_pers = 0           # persistence protect number setting
@@ -51,8 +110,8 @@ class Veml7700(BaseSensor, Iterator):
         byte_order = self._get_byteorder_as_str()[0]
         return self.adapter.write_register(self.address, reg_addr, value, bytes_count, byte_order)
 
-    def set_config_als(self, gain: int, integration_time: int, persistence: int,
-                       interrupt_enable: bool, shutdown: bool):
+    def set_config_als(self, gain: int, integration_time: int, persistence: int = 1,
+                       interrupt_enable: bool = False, shutdown: bool = False):
         """Установка параметров Датчика Внешней Освещенности (ДВО - ALS).
         Setting Ambient Light Sensor (ALS) parameters.
         gain = 0..3; 0-gain=1, 1-gain=2, 2-gain=0.125(1/8), 3-gain=0.25(1/4).
@@ -62,7 +121,7 @@ class Veml7700(BaseSensor, Iterator):
         _cfg = 0
         gain = _check_value(gain, range(4), f"Invalid als gain value: {gain}")
         _tmp = _check_value(integration_time, range(6), f"Invalid als integration_time: {integration_time}")
-        it = Veml7700._IT[_tmp]    # integration_time
+        it = Veml7700._it_to_raw_it(_tmp)    # integration_time
 
         pers = _check_value(persistence, range(4), f"Invalid als persistence protect number: {persistence}")
         ie = 0
@@ -95,13 +154,13 @@ class Veml7700(BaseSensor, Iterator):
         self.als_gain = tmp
 
         tmp = (cfg & 0b0000_0011_1100_0000) >> 6  # integration time setting
-        self.als_it = tmp
+        self.als_it = Veml7700._raw_it_to_it(tmp)
 
         tmp = (cfg & 0b0000_0000_0011_0000) >> 4  # persistence protect number setting
-        self.als_pers = 2**tmp
+        self.als_pers = tmp     # 2 ** tmp
         #
-        self.als_int_en = (cfg & 0b0000_0000_0000_0010) >> 1
-        self.als_shutdown = cfg & 0b0000_0000_0000_0001
+        self.als_int_en = bool(cfg & 0b0000_0000_0000_0010)
+        self.als_shutdown = bool(cfg & 0b0000_0000_0000_0001)
 
     def set_power_save_mode(self, enable_psm: bool, psm: int) -> None:
         """Set power save mode for sensor.
@@ -127,10 +186,13 @@ class Veml7700(BaseSensor, Iterator):
         int_th_high = bool(irq_status & 0b0100_0000_0000_0000)
         return int_th_low, int_th_high
 
-    def get_illumination(self):
+    def get_illumination(self, raw = False) -> [int, float]:
         """return illumination in lux"""
         reg_val = self._read_register(0x04, 2)
         raw_lux = self.unpack("H", reg_val)[0]
+        self._last_raw_ill = raw_lux
+        if raw:
+            return raw_lux
         return raw_lux * Veml7700._get_resolution(self.als_gain, self.als_it)
 
     def get_white_channel(self):
@@ -156,8 +218,13 @@ class Veml7700(BaseSensor, Iterator):
         """Software reset."""
         return None
 
+    @property
+    def last_raw(self)->int:
+        """Возвращает последнее, считанное из датчика, сырое значение освещенности"""
+        return self._last_raw_ill
+
     def __next__(self) -> float:
-        return self.get_illumination()
+        return self.get_illumination(raw=False)
 
     @micropython.native
     # def get_conversion_cycle_time(integration_time: int, power_save_enable: bool, power_save_mode: int) -> int:
@@ -171,5 +238,6 @@ class Veml7700(BaseSensor, Iterator):
         if not self.enable_psm:
             return base
         # весь код ниже этой строки в этой функции под вопросом. документация на Veml7700
-        # не позволяет мне понять алгоритм вычисления времени преобразования датчика!
-        return base + 500 * (2 ** self.psm)
+        # не позволяет мне понять алгоритм вычисления времени преобразования датчика при включенном режиме
+        # экономии электроэнергии (power save mode)!
+        return 100 + base + 500 * (2 ** self.psm)
