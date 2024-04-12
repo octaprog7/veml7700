@@ -119,6 +119,12 @@ class Veml7700(BaseSensor, Iterator):
         persistence protect number = 0..3; 0-1, 1-2, 2-4, 3-8
         """
         _cfg = 0
+        # перед любой перенастройкой, документация требует перевода датчика в режим ожидания
+        _bts = self._read_register(0x00, 2) # читаю
+        _cfg = self.unpack("H", _bts)[0]
+        self._write_register(0x00, _cfg | 0x01, 2)  # записываю
+
+        _cfg = 0
         gain = _check_value(gain, range(4), f"Invalid als gain value: {gain}")
         _tmp = _check_value(integration_time, range(6), f"Invalid als integration_time: {integration_time}")
         it = Veml7700._it_to_raw_it(_tmp)    # integration_time
