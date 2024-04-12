@@ -91,13 +91,13 @@ class Veml7700(BaseSensor, Iterator):
         """  """
         super().__init__(adapter, address, False)
         self._last_raw_ill =None    # хранит последнее, считанное из датчика, сырое значение освещенности
-        self.als_gain = 0           # gain
-        self.als_it = 0             # integration time
-        self.als_pers = 0           # persistence protect number setting
-        self.als_int_en = False     # interrupt enable setting
-        self.als_shutdown = False   # ALS shut down setting
-        self.enable_psm = False     # Enable power save mode for sensor
-        self.psm = 0                # power save mode for sensor 0..3
+        self._als_gain = 0           # gain
+        self._als_it = 0             # integration time
+        self._als_pers = 0           # persistence protect number setting
+        self._als_int_en = False     # interrupt enable setting
+        self._als_shutdown = False   # ALS shut down setting
+        self._enable_psm = False     # Enable power save mode for sensor
+        self._psm = 0                # power save mode for sensor 0..3
 
     def _read_register(self, reg_addr, bytes_count=2) -> bytes:
         """считывает из регистра датчика значение.
@@ -139,11 +139,11 @@ class Veml7700(BaseSensor, Iterator):
 
         self._write_register(0x00, _cfg, 2)
         # save
-        self.als_gain = gain
-        self.als_it = integration_time
-        self.als_pers = pers
-        self.als_int_en = interrupt_enable
-        self.als_shutdown = shutdown
+        self._als_gain = gain
+        self._als_it = integration_time
+        self._als_pers = pers
+        self._als_int_en = interrupt_enable
+        self._als_shutdown = shutdown
 
     def get_config_als(self) -> None:
         """read ALS config from register (2 byte)"""
@@ -151,16 +151,16 @@ class Veml7700(BaseSensor, Iterator):
         cfg = self.unpack("H", reg_val)[0]  # unsigned short
         #
         tmp = (cfg & 0b0001_1000_0000_0000) >> 11  # gain
-        self.als_gain = tmp
+        self._als_gain = tmp
 
         tmp = (cfg & 0b0000_0011_1100_0000) >> 6  # integration time setting
-        self.als_it = Veml7700._raw_it_to_it(tmp)
+        self._als_it = Veml7700._raw_it_to_it(tmp)
 
         tmp = (cfg & 0b0000_0000_0011_0000) >> 4  # persistence protect number setting
-        self.als_pers = tmp     # 2 ** tmp
+        self._als_pers = tmp     # 2 ** tmp
         #
-        self.als_int_en = bool(cfg & 0b0000_0000_0000_0010)
-        self.als_shutdown = bool(cfg & 0b0000_0000_0000_0001)
+        self._als_int_en = bool(cfg & 0b0000_0000_0000_0010)
+        self._als_shutdown = bool(cfg & 0b0000_0000_0000_0001)
 
     def set_power_save_mode(self, enable_psm: bool, psm: int) -> None:
         """Set power save mode for sensor.
@@ -172,8 +172,8 @@ class Veml7700(BaseSensor, Iterator):
         reg_val |= int(enable_psm)
         reg_val |= psm << 1
         self._write_register(0x03, reg_val, 2)
-        self.enable_psm = enable_psm
-        self.psm = psm
+        self._enable_psm = enable_psm
+        self._psm = psm
 
     def get_interrupt_status(self) -> tuple:
         """Return interrupt flags while trigger occurred due to data crossing low/high threshold windows.
@@ -193,7 +193,7 @@ class Veml7700(BaseSensor, Iterator):
         self._last_raw_ill = raw_lux
         if raw:
             return raw_lux
-        return raw_lux * Veml7700._get_resolution(self.als_gain, self.als_it)
+        return raw_lux * Veml7700._get_resolution(self._als_gain, self._als_it)
 
     def get_white_channel(self):
         """Return white channel output data"""
@@ -228,16 +228,28 @@ class Veml7700(BaseSensor, Iterator):
 
     @micropython.native
     # def get_conversion_cycle_time(integration_time: int, power_save_enable: bool, power_save_mode: int) -> int:
-    def get_conversion_cycle_time(self) -> int:
+    def get_conversion_cycle_time(self, offset: int = 100) -> int:
         """Return conversion cycle time in [ms].
         Without using the power-saving feature (PSM_EN = 0), the controller has to wait before reading out
         measurement results, at least for the programmed integration time. For example, for ALS_IT = 100 ms a wait time
         of ≥ 100 ms is needed. A more simple way of continuous measurements can be realized by activating the PSM feature,
         setting PSM_EN = 1."""
-        base = 25 * 2 ** self.als_it
-        if not self.enable_psm:
+        base = 25 * 2 ** self._als_it
+        if not self._enable_psm:
             return base
         # весь код ниже этой строки в этой функции под вопросом. документация на Veml7700
         # не позволяет мне понять алгоритм вычисления времени преобразования датчика при включенном режиме
         # экономии электроэнергии (power save mode)!
-        return 100 + base + 500 * (2 ** self.psm)
+        return offset + base + 500 * (2 ** self._psm)
+
+    @property
+    def gain(self) -> tuple[int, float]:
+        """Возвращает коэффициент усиления (raw_gain, gain)"""
+        rg = self._als_gain
+        return rg, Veml7700._raw_gain_to_gain(rg)
+
+    @property
+    def integration_time(self) -> tuple[int, int]:
+        """Возвращает время интегрирования (raw_integration_time, integration_time_ms)"""
+        rit = self._als_it
+        return rit, self._get_integration_time(rit)
