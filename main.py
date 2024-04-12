@@ -27,6 +27,8 @@ if __name__ == '__main__':
     # sol.set_power_save_mode(True, 2)
     sol.set_power_save_mode(enable_psm=False, psm=0)
     delay = old_lux = curr_max = 1
+    mpi = veml7700vishay.Veml7700.get_max_possible_illumination(sol.gain[0], sol.integration_time[0])
+    print(f"Наибольшая освещенность при текущих настройках [lux]: {mpi}")
 
     for lux in sol:
         if lux != old_lux:
@@ -37,4 +39,7 @@ if __name__ == '__main__':
             print(f"{lt[3:6]}\tIllum. [lux]: {lux}\traw: {sol.last_raw}\twhite ch.: {wh}\tmax: {curr_max}\tNormalized [%]:\
 {100*lux/curr_max}\tdelay: {delay} [ms]")
         old_lux = lux
+        if lux > 0.95 * mpi:
+            print("Текущая освещенность превысила максимальную, при данных настройках!"
+                  " Нужно перенастроить датчик! Предел почти достигнут!")
         time.sleep_ms(delay)
