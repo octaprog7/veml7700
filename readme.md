@@ -12,3 +12,8 @@ Supply voltage VEML7700 3.3 or 5.0 volts! Use four wires to connect (I2C).
 Upload micropython firmware to the NANO(ESP, etc) board, and then *.py files: main.py, veml7700vishay.py,
 and sensor_pack folder. 
 Then open main.py in your IDE and run it.
+
+# Среда разработки (IDE)
+![alt text](https://github.com/octaprog7/veml7700/blob/master/pics/ide_7700_ok.png)
+## Overlight
+![alt text](https://github.com/octaprog7/veml7700/blob/master/pics/ide_7700_overload.png)
