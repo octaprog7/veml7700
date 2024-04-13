@@ -98,6 +98,8 @@ class Veml7700(BaseSensor, Iterator):
         self._als_shutdown = False   # ALS shut down setting
         self._enable_psm = False     # Enable power save mode for sensor
         self._psm = 0                # power save mode for sensor 0..3
+        # включить нелинейное исправление значения освещенности (True) или выключить (False)
+        self._en_non_lin_corr = True
 
     def _read_register(self, reg_addr, bytes_count=2) -> bytes:
         """считывает из регистра датчика значение.
@@ -199,7 +201,10 @@ class Veml7700(BaseSensor, Iterator):
         self._last_raw_ill = raw_lux
         if raw:
             return raw_lux
-        return raw_lux * Veml7700._get_resolution(self._als_gain, self._als_it)
+        _t = raw_lux * Veml7700._get_resolution(self._als_gain, self._als_it)
+        if not self.use_non_linear_correction:
+            return _t
+        return 6.0135E-13 * _t ** 4 - 9.3924E-09 * _t ** 3 + 8.1488E-05 * _t ** 2 + 1.0023E+00 * _t
 
     def get_white_channel(self):
         """Return white channel output data"""
@@ -259,3 +264,15 @@ class Veml7700(BaseSensor, Iterator):
         """Возвращает время интегрирования (raw_integration_time, integration_time_ms)"""
         rit = self._als_it
         return rit, self._get_integration_time(rit)
+
+    @property
+    def use_non_linear_correction(self) -> bool:
+        """Возвращает признак использования нелинейной коррекции освещенности.
+        Смотри страницу 21 документа 'Designing the VEML7700 Into an Application'"""
+        return self._en_non_lin_corr
+
+    @use_non_linear_correction.setter
+    def use_non_linear_correction(self, value: bool):
+        """Устанавливает признак использования нелинейной коррекции освещенности.
+        Смотри страницу 21 документа 'Designing the VEML7700 Into an Application'"""
+        self._en_non_lin_corr = value
