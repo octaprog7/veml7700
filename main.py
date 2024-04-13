@@ -29,17 +29,22 @@ if __name__ == '__main__':
     delay = old_lux = curr_max = 1
     mpi = veml7700vishay.Veml7700.get_max_possible_illumination(sol.gain[0], sol.integration_time[0])
     print(f"Наибольшая освещенность при текущих настройках [lux]: {mpi}")
-
+    wt = sol.get_conversion_cycle_time()
+    print(f"Режим нелинейного исправления используется?: {sol.use_non_linear_correction}")
+    cnt = 0
     for lux in sol:
+        # включаю и выключаю режим нелинейной коррекции каждые 30 отсчетов!
+        sol.use_non_linear_correction = 0 == (cnt // 30) % 2
         if lux != old_lux:
             curr_max = max(lux, curr_max)
             lt = time.localtime()
             wh = sol.get_white_channel()
-            delay = sol.get_conversion_cycle_time()
+            #
             print(f"{lt[3:6]}\tIllum. [lux]: {lux}\traw: {sol.last_raw}\twhite ch.: {wh}\tmax: {curr_max}\tNormalized [%]:\
-{100*lux/curr_max}\tdelay: {delay} [ms]")
+{100*lux/curr_max}\tUse non lin corr: {sol.use_non_linear_correction}")
         old_lux = lux
         if lux > 0.95 * mpi:
             print("Текущая освещенность превысила максимальную, при данных настройках!"
                   " Нужно перенастроить датчик! Предел почти достигнут!")
-        time.sleep_ms(delay)
+        time.sleep_ms(wt)
+        cnt += 1
