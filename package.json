@@ -1,0 +1,24 @@
+{
+  "name": "veml7700",
+  "version": "1.0.1",
+  "author": "octaprog7",
+  "urls": [
+    [
+      "sensor_pack_2/__init__.py",
+      "github:octaprog7/veml7700/sensor_pack_2/__init__.py"
+    ],
+    [
+      "sensor_pack_2/base_sensor.py",
+      "github:octaprog7/veml7700/sensor_pack_2/base_sensor.py"
+    ],
+    [
+      "sensor_pack_2/bus_service.py",
+      "github:octaprog7/veml7700/sensor_pack_2/bus_service.py"
+    ],
+    [
+      "veml7700vishay.py",
+      "github:octaprog7/veml7700/veml7700vishay.py"
+    ]
+  ],
+  "deps": []
+}
